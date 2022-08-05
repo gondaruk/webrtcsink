@@ -89,6 +89,10 @@ body{
 	}
 }
 
+.session {
+	height: 75vh;
+}
+
 .session p span {
 	float: right;
 }
@@ -100,7 +104,8 @@ body{
 
 .stream {
 	background-color: black;
-	width: 480px;
+	height: 100%;
+	width: 100%;
 }
 
 #camera-list {

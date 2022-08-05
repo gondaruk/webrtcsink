@@ -364,8 +364,14 @@ function addPeer(peer_id, meta) {
         var sessions_div = document.getElementById('sessions');
         var our_id = getOurId();
         var session_div_str = '<div class="session" id="session-' + our_id + '"><video preload="none" class="stream" id="stream-' + our_id + '"></video><p>Status: <span id="status-' + our_id + '">unknown</span></p></div>'
-        sessions_div.insertAdjacentHTML('beforeend', session_div_str);
+        sessions_div.innerHTML = session_div_str;
         sessions[peer_id] = new Session(our_id, peer_id, session_closed);
+
+        document.getElementById('stream-' + our_id).addEventListener("click", function(event) {
+            requestElementFullscreen(document.getElementById('stream-' + our_id));
+        });
+
+        e.target.blur();
     }
 }
 
@@ -456,4 +462,17 @@ function connect() {
 
 function setup() {
     connect();
+}
+
+function requestElementFullscreen(element) {
+    console.log('requestElementFullscreen called for ', element);
+    if (element.requestFullscreen) {
+        element.requestFullscreen();
+    } else if (element.webkitRequestFullscreen) {
+        /* Safari */
+        element.webkitRequestFullscreen();
+    } else if (element.msRequestFullscreen) {
+        /* IE11 */
+        element.msRequestFullscreen();
+    }
 }
