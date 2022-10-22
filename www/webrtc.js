@@ -11,39 +11,41 @@
 var ws_server;
 var ws_port;
 // Override with your own STUN servers if you want
-var rtc_configuration = {iceServers: [{urls: "stun:stun.l.google.com:19302"},
-                                       /* TODO: do not keep these static and in clear text in production,
-                                        * and instead use one of the mechanisms discussed in
-                                        * https://groups.google.com/forum/#!topic/discuss-webrtc/nn8b6UboqRA
-                                        */
-                                      {'urls': 'turn:turn.homeneural.net:3478?transport=udp',
-                                       'credential': '1qaz2wsx',
-                                       'username': 'test'
-                                      }],
-                         /* Uncomment the following line to ensure the turn server is used
-                          * while testing. This should be kept commented out in production,
-                          * as non-relay ice candidates should be preferred
-                          */
-                         // iceTransportPolicy: "relay",
-                        };
+var rtc_configuration = {
+    iceServers: [{urls: "stun:stun.l.google.com:19302"},
+        /* TODO: do not keep these static and in clear text in production,
+         * and instead use one of the mechanisms discussed in
+         * https://groups.google.com/forum/#!topic/discuss-webrtc/nn8b6UboqRA
+         */
+        {
+            'urls': 'turn:turn.homeneural.net:3478?transport=udp',
+            'credential': '1qaz2wsx',
+            'username': 'test'
+        }],
+    /* Uncomment the following line to ensure the turn server is used
+     * while testing. This should be kept commented out in production,
+     * as non-relay ice candidates should be preferred
+     */
+    // iceTransportPolicy: "relay",
+};
 
 var sessions = {}
 
 /* https://stackoverflow.com/questions/105034/create-guid-uuid-in-javascript */
 function getOurId() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
 }
 
-function Uint8ToString(u8a){
-  var CHUNK_SZ = 0x8000;
-  var c = [];
-  for (var i=0; i < u8a.length; i+=CHUNK_SZ) {
-    c.push(String.fromCharCode.apply(null, u8a.subarray(i, i+CHUNK_SZ)));
-  }
-  return c.join("");
+function Uint8ToString(u8a) {
+    var CHUNK_SZ = 0x8000;
+    var c = [];
+    for (var i = 0; i < u8a.length; i += CHUNK_SZ) {
+        c.push(String.fromCharCode.apply(null, u8a.subarray(i, i + CHUNK_SZ)));
+    }
+    return c.join("");
 }
 
 function Session(our_id, peer_id, closed_callback) {
@@ -56,11 +58,11 @@ function Session(our_id, peer_id, closed_callback) {
     this.data_channel = null;
     this.input = null;
 
-    this.getVideoElement = function() {
+    this.getVideoElement = function () {
         return document.getElementById("stream-" + this.our_id);
     };
 
-    this.resetState = function() {
+    this.resetState = function () {
         if (this.peer_connection) {
             this.peer_connection.close();
             this.peer_connection = null;
@@ -84,12 +86,12 @@ function Session(our_id, peer_id, closed_callback) {
         this.data_channel = null;
     };
 
-    this.handleIncomingError = function(error) {
+    this.handleIncomingError = function (error) {
         this.resetState();
         this.closed_callback(this.our_id);
     };
 
-    this.setStatus = function(text) {
+    this.setStatus = function (text) {
         console.log(text);
         var span = document.getElementById("status-" + this.our_id);
         // Don't set the status if it already contains an error
@@ -97,7 +99,7 @@ function Session(our_id, peer_id, closed_callback) {
             span.textContent = text;
     };
 
-    this.setError = function(text) {
+    this.setError = function (text) {
         console.error(text);
         var span = document.getElementById("status-" + this.our_id);
         span.textContent = text;
@@ -107,7 +109,7 @@ function Session(our_id, peer_id, closed_callback) {
     };
 
     // Local description was set, send it to peer
-    this.onLocalDescription = function(desc) {
+    this.onLocalDescription = function (desc) {
         console.log("Got local description: " + JSON.stringify(desc), this);
         var thiz = this;
         this.peer_connection.setLocalDescription(desc).then(() => {
@@ -118,38 +120,38 @@ function Session(our_id, peer_id, closed_callback) {
                 'sdp': this.peer_connection.localDescription.toJSON()
             };
             this.ws_conn.send(JSON.stringify(sdp));
-        }).catch(function(e) {
+        }).catch(function (e) {
             thiz.setError(e);
         });
     };
 
-    this.onRemoteDescriptionSet = function() {
+    this.onRemoteDescriptionSet = function () {
         this.setStatus("Remote SDP set");
         this.setStatus("Got SDP offer");
         this.peer_connection.createAnswer()
-        .then(this.onLocalDescription.bind(this)).catch(this.setError);
+            .then(this.onLocalDescription.bind(this)).catch(this.setError);
     }
 
     // SDP offer received from peer, set remote description and create an answer
-    this.onIncomingSDP = function(sdp) {
+    this.onIncomingSDP = function (sdp) {
         var thiz = this;
         this.peer_connection.setRemoteDescription(sdp)
             .then(this.onRemoteDescriptionSet.bind(this))
-            .catch(function(e) {
+            .catch(function (e) {
                 thiz.setError(e)
             });
     };
 
     // ICE candidate received from peer, add it to the peer connection
-    this.onIncomingICE = function(ice) {
+    this.onIncomingICE = function (ice) {
         var candidate = new RTCIceCandidate(ice);
         var thiz = this;
-        this.peer_connection.addIceCandidate(candidate).catch(function(e) {
+        this.peer_connection.addIceCandidate(candidate).catch(function (e) {
             thiz.setError(e)
         });
     };
 
-    this.onServerMessage = function(event) {
+    this.onServerMessage = function (event) {
         console.log("Received " + event.data);
         try {
             msg = JSON.parse(event.data);
@@ -188,32 +190,32 @@ function Session(our_id, peer_id, closed_callback) {
         }
     };
 
-    this.streamIsPlaying = function(e) {
+    this.streamIsPlaying = function (e) {
         this.setStatus("Streaming");
     };
 
-    this.onServerClose = function(event) {
+    this.onServerClose = function (event) {
         this.resetState();
         this.closed_callback(this.our_id);
     };
 
-    this.onServerError = function(event) {
+    this.onServerError = function (event) {
         this.handleIncomingError('Server error');
     };
 
-    this.websocketServerConnect = function() {
+    this.websocketServerConnect = function () {
         // Clear errors in the status span
         var span = document.getElementById("status-" + this.our_id);
         span.classList.remove('error');
         span.textContent = '';
         console.log("Our ID:", this.our_id);
         var ws_port = ws_port || '8443';
-        if (window.location.protocol.startsWith ("file")) {
+        if (window.location.protocol.startsWith("file")) {
             var ws_server = ws_server || "127.0.0.1";
-        } else if (window.location.protocol.startsWith ("http")) {
+        } else if (window.location.protocol.startsWith("http")) {
             var ws_server = ws_server || window.location.hostname;
         } else {
-            throw new Error ("Don't know how to connect to the signalling server with uri" + window.location);
+            throw new Error("Don't know how to connect to the signalling server with uri" + window.location);
         }
         var ws_url = 'ws://' + ws_server + ':' + ws_port
         this.setStatus("Connecting to server " + ws_url);
@@ -228,7 +230,7 @@ function Session(our_id, peer_id, closed_callback) {
         this.ws_conn.addEventListener('close', this.onServerClose.bind(this));
     };
 
-    this.connectPeer = function() {
+    this.connectPeer = function () {
         this.setStatus("Connecting " + this.peer_id);
 
         this.ws_conn.send(JSON.stringify({
@@ -237,7 +239,7 @@ function Session(our_id, peer_id, closed_callback) {
         }));
     };
 
-    this.onRemoteStreamAdded = function(event) {
+    this.onRemoteStreamAdded = function (event) {
         var videoTracks = event.stream.getVideoTracks();
         var audioTracks = event.stream.getAudioTracks();
 
@@ -252,7 +254,7 @@ function Session(our_id, peer_id, closed_callback) {
         }
     };
 
-    this.createCall = function(msg) {
+    this.createCall = function (msg) {
         console.log('Creating RTCPeerConnection');
 
         this.peer_connection = new RTCPeerConnection(rtc_configuration);
@@ -361,7 +363,7 @@ function addPeer(peer_id, meta) {
 
     nav_ul.insertAdjacentHTML('beforeend', li_str);
     var li = document.getElementById("peer-" + peer_id);
-    li.onclick = function(e) {
+    li.onclick = function (e) {
         var sessions_div = document.getElementById('sessions');
         var our_id = getOurId();
         var session_div_str = '<div class="session" id="session-' + our_id + '"><video preload="none" class="stream" id="stream-' + our_id + '"></video><p>Status: <span id="status-' + our_id + '">unknown</span></p></div>'
@@ -440,12 +442,12 @@ function onServerError(event) {
 
 function connect() {
     var ws_port = ws_port || '8443';
-    if (window.location.protocol.startsWith ("file")) {
+    if (window.location.protocol.startsWith("file")) {
         var ws_server = ws_server || "127.0.0.1";
-    } else if (window.location.protocol.startsWith ("http")) {
+    } else if (window.location.protocol.startsWith("http")) {
         var ws_server = ws_server || window.location.hostname;
     } else {
-        throw new Error ("Don't know how to connect to the signalling server with uri" + window.location);
+        throw new Error("Don't know how to connect to the signalling server with uri" + window.location);
     }
     var ws_url = 'ws://' + ws_server + ':' + ws_port
     console.log("Connecting listener");
@@ -461,6 +463,18 @@ function connect() {
     ws_conn.addEventListener('close', onServerClose);
 }
 
+
+function restartSystemdUnit(unit) {
+    ws_conn.send(JSON.stringify({
+        "type": "restartSystemdUnit",
+        "unit": unit
+    }));
+};
+
+
 function setup() {
     connect();
+    document.getElementById('action-restart-pipeline').onclick = function () {
+        restartSystemdUnit('ds-osd-py')
+    };
 }

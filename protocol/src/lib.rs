@@ -116,6 +116,13 @@ pub struct PeerMessage {
     pub peer_message: PeerMessageInner,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+/// Restart systemd service
+pub struct RestartSystemdUnitMessage {
+    pub unit: String,
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 /// End a session
@@ -141,4 +148,6 @@ pub enum IncomingMessage {
     Peer(PeerMessage),
     /// Retrieve the current list of producers
     List,
+    /// Restart systemd service
+    RestartSystemdUnit(RestartSystemdUnitMessage),
 }

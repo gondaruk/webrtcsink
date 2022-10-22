@@ -49,7 +49,7 @@ impl Handler {
     #[instrument(level = "debug", skip(stream))]
     /// Create a handler
     pub fn new(
-        stream: Pin<Box<dyn Stream<Item = (String, Option<p::IncomingMessage>)> + Send>>,
+        stream: Pin<Box<dyn Stream<Item=(String, Option<p::IncomingMessage>)> + Send>>,
     ) -> Self {
         Self {
             stream,
@@ -86,6 +86,7 @@ impl Handler {
             p::IncomingMessage::Peer(peermsg) => self.handle_peer_message(peer_id, peermsg),
             p::IncomingMessage::List => self.list_producers(peer_id),
             p::IncomingMessage::EndSession(msg) => self.end_session(peer_id, &msg.session_id),
+            p::IncomingMessage::RestartSystemdUnit(msg) => self.restart_systemd_unit(&msg.unit)
         }
     }
 
@@ -214,6 +215,13 @@ impl Handler {
             },
         ));
 
+        Ok(())
+    }
+
+    /// Restart systemd service
+    #[instrument(level = "debug", skip(self))]
+    fn restart_systemd_unit(&mut self, unit: &str) -> Result<(), Error> {
+        systemctl(vec!["restart", unit])?;
         Ok(())
     }
 
@@ -394,8 +402,8 @@ mod tests {
                 peer_id: None,
             })),
         ))
-        .await
-        .unwrap();
+            .await
+            .unwrap();
     }
 
     #[async_std::test]
@@ -484,7 +492,7 @@ mod tests {
                 meta: Some(json!({
                         "display-name": Some("foobar".to_string()),
                     }
-                ))
+                )),
             })
         );
     }
@@ -581,7 +589,7 @@ mod tests {
                 "producer".into(),
                 p::OutgoingMessage::StartSession {
                     peer_id: "consumer".into(),
-                    session_id: session_id.clone()
+                    session_id: session_id.clone(),
                 }
             )
         );
@@ -615,7 +623,7 @@ mod tests {
             p::OutgoingMessage::PeerStatusChanged(PeerStatus {
                 roles: vec![],
                 peer_id: Some("producer".to_string()),
-                meta: Default::default()
+                meta: Default::default(),
             })
         );
     }
@@ -913,7 +921,7 @@ mod tests {
                 session_id: session_id.clone(),
                 peer_message: p::PeerMessageInner::Sdp(p::SdpMessage::Offer {
                     sdp: "offer".to_string()
-                })
+                }),
             })
         );
     }
@@ -976,8 +984,8 @@ mod tests {
                 session_id: session_id.clone(),
                 peer_message: p::PeerMessageInner::Ice {
                     candidate: "candidate".to_string(),
-                    sdp_m_line_index: 42
-                }
+                    sdp_m_line_index: 42,
+                },
             })
         );
 
@@ -1000,8 +1008,8 @@ mod tests {
                 session_id: session_id.clone(),
                 peer_message: p::PeerMessageInner::Ice {
                     candidate: "candidate".to_string(),
-                    sdp_m_line_index: 42
-                }
+                    sdp_m_line_index: 42,
+                },
             })
         );
     }
@@ -1057,12 +1065,12 @@ mod tests {
         let response = handler.next().await.unwrap();
 
         assert_eq!(response,
-            (
-                "consumer".into(),
-                p::OutgoingMessage::Error {
-                    details: r#"cannot forward offer from "consumer" to "producer" as "consumer" is not the producer"#.into()
-                }
-            )
+                   (
+                       "consumer".into(),
+                       p::OutgoingMessage::Error {
+                           details: r#"cannot forward offer from "consumer" to "producer" as "consumer" is not the producer"#.into()
+                       }
+                   )
         );
     }
 
@@ -1191,7 +1199,7 @@ mod tests {
             p::OutgoingMessage::PeerStatusChanged(PeerStatus {
                 roles: vec![p::PeerRole::Producer],
                 peer_id: Some("producer".to_string()),
-                meta: Default::default()
+                meta: Default::default(),
             })
         );
 
@@ -1254,7 +1262,7 @@ mod tests {
                 p::OutgoingMessage::PeerStatusChanged(PeerStatus {
                     roles: vec![],
                     peer_id: Some("producer".to_string()),
-                    meta: Default::default()
+                    meta: Default::default(),
                 })
             )
         );
@@ -1418,4 +1426,14 @@ mod tests {
             .get(&session0_id)
             .expect("Session should remain");
     }
+}
+
+/// Invokes `systemctl $args` silently
+fn systemctl(args: Vec<&str>) -> std::io::Result<std::process::ExitStatus> {
+    let mut child = std::process::Command::new("/usr/bin/systemctl")
+        .args(args)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()?;
+    child.wait()
 }
