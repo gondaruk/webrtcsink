@@ -48,6 +48,21 @@ function Uint8ToString(u8a) {
     return c.join("");
 }
 
+function bytesToSize(bytes) {
+    var k = 1000;
+    var sizes = ['bytes', 'KB', 'MB', 'GB', 'TB'];
+    if (bytes <= 0) {
+        return '0 Bytes';
+    }
+    var i = parseInt(Math.floor(Math.log(bytes) / Math.log(k)), 10);
+
+    if(!sizes[i]) {
+        return '0 Bytes';
+    }
+
+    return (bytes / Math.pow(k, i)).toPrecision(3) + ' ' + sizes[i];
+}
+
 function Session(our_id, peer_id, closed_callback) {
     this.id = null;
     this.peer_connection = null;
@@ -89,6 +104,26 @@ function Session(our_id, peer_id, closed_callback) {
     this.handleIncomingError = function (error) {
         this.resetState();
         this.closed_callback(this.our_id);
+    };
+
+    this.updateStatistics = function(result) {
+        let codecs = [].concat(result.video.recv.codecs, result.audio.recv.codecs).join(',') || '...';
+        let transport = result.connectionType.transport || '...';
+        let encryption = result.encryption || '...';
+
+        let speedRecv = bytesToSize(result.bandwidth.speedRecv) + '/sec'
+        let b = function(x) {return '<strong style="font-weight: bolder">' + x + '</strong>'}
+        let nl = function() {return '<br/>'}
+        this.setStatistics(
+            b(codecs) + ' over ' + b(transport) + ' (' + encryption + ') ' + nl()
+            + 'recv speed ' + b(speedRecv) + nl()
+            + 'latency ' + b(result.video.latency + 'ms ') + nl()
+            + 'packetsLost ' + b(result.video.packetsLost));
+    }
+
+    this.setStatistics = function (text) {
+        var span = document.getElementById("statistics-" + this.our_id);
+        span.innerHTML = text;
     };
 
     this.setStatus = function (text) {
@@ -260,6 +295,8 @@ function Session(our_id, peer_id, closed_callback) {
         this.peer_connection = new RTCPeerConnection(rtc_configuration);
         this.peer_connection.onaddstream = this.onRemoteStreamAdded.bind(this);
 
+        getStats(this.peer_connection, this.updateStatistics.bind(this), 1000);
+
         this.peer_connection.ondatachannel = (event) => {
             console.log(`Data channel created: ${event.channel.label}`);
             this.data_channel = event.channel;
@@ -366,7 +403,7 @@ function addPeer(peer_id, meta) {
     li.onclick = function (e) {
         var sessions_div = document.getElementById('sessions');
         var our_id = getOurId();
-        var session_div_str = '<div class="session" id="session-' + our_id + '"><video preload="none" class="stream" id="stream-' + our_id + '"></video><p>Status: <span id="status-' + our_id + '">unknown</span></p></div>'
+        var session_div_str = '<div class="session" id="session-' + our_id + '"><video preload="none" class="stream" id="stream-' + our_id + '"></video><p>Status: <span id="status-' + our_id + '">unknown</span></p><p>Stats: <span id="statistics-' + our_id + '"></span></p></div>'
         sessions_div.insertAdjacentHTML('beforeend', session_div_str);
         sessions[peer_id] = new Session(our_id, peer_id, session_closed);
     }
